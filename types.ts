@@ -13,8 +13,15 @@ export interface Game {
   isHot?: boolean;
 }
 
+export interface AppSettings {
+  panicUrl: string;
+  panicKey: string;
+  cloak: 'none' | 'google' | 'drive' | 'classroom';
+}
+
 export interface AppState {
   searchQuery: string;
   selectedCategory: Category | 'All';
   favorites: string[];
+  settings: AppSettings;
 }

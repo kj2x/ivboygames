@@ -3,9 +3,19 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import GamePage from './pages/GamePage';
-import { Game, AppState } from './types';
+import SettingsPage from './pages/SettingsPage';
+import GameCard from './components/GameCard';
+import { Game, AppSettings } from './types';
 import { GAMES } from './constants';
-import { Github, Twitter, Mail } from 'lucide-react';
+// Added missing Heart icon to imports
+import { Github, Twitter, Mail, Heart } from 'lucide-react';
+
+const CLOAK_CONFIG = {
+  none: { title: 'Nova Games | Play Unblocked', icon: '/favicon.ico' },
+  google: { title: 'Google', icon: 'https://www.google.com/favicon.ico' },
+  drive: { title: 'My Drive - Google Drive', icon: 'https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png' },
+  classroom: { title: 'Classes', icon: 'https://www.gstatic.com/classroom/favicon.png' }
+};
 
 const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState('/');
@@ -13,19 +23,51 @@ const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<AppSettings>({
+    panicUrl: 'https://classroom.google.com',
+    panicKey: '`',
+    cloak: 'none'
+  });
 
-  // Load favorites from local storage
+  // Load persistence
   useEffect(() => {
-    const stored = localStorage.getItem('nova_favorites');
-    if (stored) {
-      setFavorites(JSON.parse(stored));
-    }
+    const storedFavs = localStorage.getItem('nova_favorites');
+    if (storedFavs) setFavorites(JSON.parse(storedFavs));
+    
+    const storedSettings = localStorage.getItem('nova_settings');
+    if (storedSettings) setSettings(JSON.parse(storedSettings));
   }, []);
 
-  // Save favorites to local storage
+  // Save persistence
   useEffect(() => {
     localStorage.setItem('nova_favorites', JSON.stringify(favorites));
   }, [favorites]);
+
+  useEffect(() => {
+    localStorage.setItem('nova_settings', JSON.stringify(settings));
+    
+    // Apply cloak
+    const config = CLOAK_CONFIG[settings.cloak];
+    document.title = config.title;
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = config.icon;
+  }, [settings]);
+
+  // Global Panic Key Listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === settings.panicKey) {
+        window.location.href = settings.panicUrl;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [settings.panicKey, settings.panicUrl]);
 
   const toggleFavorite = (e: React.MouseEvent | string, id?: string) => {
     const gameId = typeof e === 'string' ? e : id!;
@@ -65,45 +107,50 @@ const App: React.FC = () => {
       );
     }
 
+    if (currentPath === '/settings') {
+      return (
+        <SettingsPage 
+          settings={settings} 
+          updateSettings={(s) => setSettings(prev => ({ ...prev, ...s }))} 
+        />
+      );
+    }
+
     if (currentPath === '/favorites') {
       const favoriteGames = GAMES.filter(g => favorites.includes(g.id));
       return (
         <div className="max-w-7xl mx-auto px-4 py-8">
-          <h2 className="text-3xl font-gaming font-bold text-white mb-8">My Favorites</h2>
+          <div className="mb-8">
+            <h2 className="text-3xl font-gaming font-bold text-white mb-2">My Favorites</h2>
+            <p className="text-slate-500">Your collection of hand-picked unblocked games.</p>
+          </div>
           {favoriteGames.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {favoriteGames.map(game => (
-                <HomePage 
+                <GameCard
                   key={game.id}
-                  searchQuery={''}
-                  selectedCategory={'All'}
-                  setSelectedCategory={() => {}}
-                  favorites={favorites}
-                  toggleFavorite={toggleFavorite}
-                  onGameSelect={openGame}
+                  game={game}
+                  isFavorite={true}
+                  onToggleFavorite={toggleFavorite}
+                  onClick={openGame}
                 />
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 bg-slate-800/30 rounded-3xl border border-slate-700">
-              <p className="text-slate-400">You haven't added any favorites yet.</p>
+            <div className="text-center py-24 bg-slate-800/20 rounded-3xl border border-slate-800 border-dashed">
+              <div className="bg-slate-800/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Heart className="w-8 h-8 text-slate-600" />
+              </div>
+              <p className="text-slate-400 text-lg mb-2">No favorites yet</p>
+              <button 
+                onClick={() => handleNavigate('/')}
+                className="text-indigo-400 hover:text-indigo-300 font-medium"
+              >
+                Go find some games!
+              </button>
             </div>
           )}
         </div>
-      );
-    }
-
-    if (currentPath === '/trending') {
-      const trendingGames = [...GAMES].sort((a, b) => b.rating - a.rating);
-      return (
-        <HomePage 
-          searchQuery={''}
-          selectedCategory={'All'}
-          setSelectedCategory={setSelectedCategory}
-          favorites={favorites}
-          toggleFavorite={toggleFavorite}
-          onGameSelect={openGame}
-        />
       );
     }
 
@@ -120,7 +167,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col selection:bg-indigo-500/30">
       <Navbar 
         searchQuery={searchQuery} 
         setSearchQuery={setSearchQuery} 
@@ -150,15 +197,14 @@ const App: React.FC = () => {
               <h4 className="text-white font-bold mb-4 uppercase text-xs tracking-widest">Platform</h4>
               <ul className="text-slate-500 text-sm space-y-2">
                 <li><button onClick={() => handleNavigate('/')} className="hover:text-indigo-400 transition-colors">Browse</button></li>
-                <li><button onClick={() => handleNavigate('/trending')} className="hover:text-indigo-400 transition-colors">Trending</button></li>
-                <li><button className="hover:text-indigo-400 transition-colors">New Releases</button></li>
+                <li><button onClick={() => handleNavigate('/favorites')} className="hover:text-indigo-400 transition-colors">Favorites</button></li>
+                <li><button onClick={() => handleNavigate('/settings')} className="hover:text-indigo-400 transition-colors">Settings</button></li>
               </ul>
             </div>
             <div>
               <h4 className="text-white font-bold mb-4 uppercase text-xs tracking-widest">Support</h4>
               <ul className="text-slate-500 text-sm space-y-2">
                 <li><button className="hover:text-indigo-400 transition-colors">Privacy Policy</button></li>
-                <li><button className="hover:text-indigo-400 transition-colors">Terms of Service</button></li>
                 <li><button className="hover:text-indigo-400 transition-colors">Contact Us</button></li>
               </ul>
             </div>
@@ -172,7 +218,7 @@ const App: React.FC = () => {
         </div>
         <div className="max-w-7xl mx-auto pt-12 mt-12 border-t border-slate-800 text-center">
           <p className="text-slate-600 text-xs">
-            © {new Date().getFullYear()} Nova Games. All rights reserved. Some content may be property of their respective owners.
+            © {new Date().getFullYear()} Nova Games. Designed for high performance.
           </p>
         </div>
       </footer>
